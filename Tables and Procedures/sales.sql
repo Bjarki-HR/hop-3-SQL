@@ -114,8 +114,6 @@ BEGIN
 END;
 GO
 
-
-
 --------------------------  procedure post_process --------------------------
 
 DROP PROCEDURE IF EXISTS [h2].[factSales_post_process];

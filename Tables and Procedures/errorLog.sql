@@ -8,7 +8,7 @@ CREATE TABLE ErrorLog
     [ErrorMessage] [nvarchar](50) NOT NULL,
     [rowBatchId] [int] not NULL,
     [errId] [int] not NULL,
-    [errorTimestamp] [datetime], not NULL
+    [errorTimestamp] [datetime] not NULL,
     [val] [int] NULL,
 
 

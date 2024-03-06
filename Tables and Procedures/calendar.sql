@@ -150,5 +150,4 @@ AS
     RETURN 1
 GO
 
-exec [h2].[dimProduct_publish] @BatchId = -1
 

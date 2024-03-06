@@ -2,11 +2,12 @@
 --- Dim Products -------------------------------------------
 ------------------------------------------------------------
 
+
+--- Target Table
 IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'dimProduct') AND type in (N'U'))
 DROP TABLE dimProduct;
 GO
 
--- TODO: laga not null á cost á price
 CREATE TABLE dimProduct
 (
     [ID] [int] IDENTITY(1,1) NOT NULL,
@@ -16,7 +17,7 @@ CREATE TABLE dimProduct
     [cost] [decimal](19, 2) ,
     [price] [decimal](19, 2) ,
     [rowCreated] [datetime] default getutcdate(),
-    [rowModified] [datetime] not null default getutcdate()
+    [rowModified] [datetime] not null default getutcdate(),
     [rowBatchId] [int] not null,
     CONSTRAINT [PK_dimProduct] PRIMARY KEY CLUSTERED 
     (
@@ -29,7 +30,6 @@ CREATE TABLE dimProduct
 );
 GO
 
---- TODO: Láta unique á batchId
 
 --------------------------  staging ------------------------------
 IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[h2].[dimProduct_stg]') AND type in (N'U'))
@@ -53,57 +53,46 @@ GO
 --------------------------  Procedure publish -------------------------- 
 DROP PROCEDURE IF EXISTS [h2].[dimProduct_publish];
 GO
+
 CREATE PROCEDURE [h2].[dimProduct_publish]
 @BatchId int
 AS
 BEGIN
-    --
-    -- quality check here
-    -- Check for NULL, if NULL is found log into the errorLog table
-    --
-    INSERT INTO ErrorLog (BatchRowId, ErrorMessage, ProductID)
+    -- Check for NULL in 'cost' or 'price' and log errors
+    INSERT INTO ErrorLog (rowBatchId, ErrorMessage, errId, errorTimestamp, val)
     SELECT 
         [rowBatchId], 
         'NULL values found in cost or price', 
-        [rowKey]
+        [rowKey],
+        GETUTCDATE(), 
+        NULL 
     FROM 
         [h2].[dimProduct_stg]
     WHERE 
         [rowBatchId] = @BatchId 
         AND ([cost] IS NULL OR [price] IS NULL);
-    
 
-    -- Check for negative values in cost or price and log errors
-    INSERT INTO ErrorLog (BatchRowId, ErrorMessage, ProductID)
-    SELECT 
-        [rowBatchId], 
-        'Negative values found in cost or price', 
-        [rowKey]
-    FROM 
-        [h2].[dimProduct_stg]
-    WHERE 
-        [rowBatchId] = @BatchId 
-        AND ([cost] < 0 OR [price] < 0);
-
+    -- Proceed with the MERGE operation
     MERGE INTO [h2].[dimProduct] AS TRG
     USING (
-        SELECT [rowKey],
-        [name],
-        [category],
-        [rowBatchId],
-        [rowCreated],
-        [cost],
-        [price]
+        SELECT 
+            [rowKey],
+            [name],
+            [category],
+            [rowBatchId],
+            [rowCreated],
+            [cost],
+            [price]
         FROM [h2].[dimProduct_stg]
         WHERE [rowBatchId] = @BatchId
     ) AS SRC
-        ON SRC.rowKey = TRG.rowKey
+    ON SRC.rowKey = TRG.rowKey
     WHEN MATCHED THEN
         UPDATE SET
-            [name] = SRC.[name],
-            [category] = SRC.[category],
-            [rowBatchId] = SRC.[rowBatchId], 
-            [rowModified] = getutcdate()
+            TRG.[name] = SRC.[name],
+            TRG.[category] = SRC.[category],
+            TRG.[rowBatchId] = SRC.[rowBatchId], 
+            TRG.[rowModified] = GETUTCDATE()
     WHEN NOT MATCHED THEN
         INSERT
         (
@@ -114,7 +103,6 @@ BEGIN
             [cost],
             [price],
             [rowCreated]
-
         )
         VALUES
         (
@@ -131,23 +119,6 @@ BEGIN
     RETURN 1;
 END;
 GO
-
-
-
-DROP PROCEDURE IF EXISTS [h2].[dimProduct_post_process];
-GO
-CREATE PROCEDURE [h2].[dimProduct_post_process]
-    @BatchId INT
-AS
-    delete from [h2].[dimProduct_stg] where rowBatchId = @BatchId
-
-    SELECT dummyval = 2
-    RETURN 1
-GO
-
-exec [h2].[dimProduct_publish] @BatchId = -1
-
-
 
 --------------------------   procedure post_process -------------------------- 
 

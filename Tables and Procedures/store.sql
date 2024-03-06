@@ -14,7 +14,7 @@ CREATE TABLE dimStore
     [city] [nvarchar](50) NOT NULL,
     [location] [nvarchar](50) NOT NULL,
     [rowCreated] [datetime] default getutcdate(),
-    [rowModified] [datetime] not null default getutcdate()
+    [rowModified] [datetime] not null default getutcdate(),
     [rowBatchId] [int] not null,
     
     CONSTRAINT [PK_dimStore] PRIMARY KEY CLUSTERED 
@@ -32,7 +32,7 @@ GO
 -------------------------- Staging --------------------------
 
 IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'dimStore_stg') AND type in (N'U'))
-DROP TABLE dimStore;
+DROP TABLE dimStore_stg;
 GO
 
 CREATE TABLE dimStore_stg
@@ -144,4 +144,3 @@ AS
     RETURN 1
 GO
 
-exec [h2].[dimProduct_publish] @BatchId = -1
